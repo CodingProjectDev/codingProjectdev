@@ -1,12 +1,14 @@
 const soundManager = {
-  baseURL: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/329180/",
+  baseURL: "./assets/", 
+
   ctx: new (window.AudioContext || window.webkitAudioContext)(),
+
   sources: {
     lift: {
       volume: 1,
       playbackRateMin: 0.85,
       playbackRateMax: 0.95,
-      fileNames: ["lift1.mp3", "lift2.mp3", "lift3.mp3"],
+      fileNames: ["lift1.mov", "lift2.mp3", "lift3.mp3"],
     },
     burst: {
       volume: 1,
@@ -47,33 +49,49 @@ const soundManager = {
     }
 
     const types = Object.keys(this.sources);
+
     types.forEach((type) => {
       const source = this.sources[type];
       const { fileNames } = source;
       const filePromises = [];
+
       fileNames.forEach((fileName) => {
         const fileURL = this.baseURL + fileName;
-        // Promise will resolve with decoded audio buffer.
+
         const promise = fetch(fileURL)
           .then(checkStatus)
           .then((response) => response.arrayBuffer())
           .then(
             (data) =>
-              new Promise((resolve) => {
-                this.ctx.decodeAudioData(data, resolve);
+              new Promise((resolve, reject) => {
+                this.ctx.decodeAudioData(
+                  data,
+                  (buffer) => resolve(buffer),
+                  (err) => reject(new Error(`Decode failed for ${fileName}: ${err.message}`))
+                );
               })
-          );
+          )
+          .catch((err) => {
+            console.error(`Failed to load sound: ${fileURL}`, err);
+            return null; // continue even if one file fails
+          });
 
         filePromises.push(promise);
         allFilePromises.push(promise);
       });
 
       Promise.all(filePromises).then((buffers) => {
-        source.buffers = buffers;
+        // Remove failed (null) buffers
+        source.buffers = buffers.filter(Boolean);
+        if (source.buffers.length === 0) {
+          console.warn(`No valid buffers loaded for sound type: ${type}`);
+        }
       });
     });
 
-    return Promise.all(allFilePromises);
+    return Promise.all(allFilePromises).then(() => {
+      console.log("Sound preloading finished");
+    });
   },
 
   pauseAll() {
@@ -81,56 +99,49 @@ const soundManager = {
   },
 
   resumeAll() {
-    // Play a sound with no volume for iOS. This 'unlocks' the audio context when the user first enables sound.
+    // Play silent sound to unlock on iOS
     this.playSound("lift", 0);
-    // Chrome mobile requires interaction before starting audio context.
-    // The sound toggle button is triggered on 'touchstart', which doesn't seem to count as a full
-    // interaction to Chrome. I guess it needs a click? At any rate if the first thing the user does
-    // is enable audio, it doesn't work. Using a setTimeout allows the first interaction to be registered.
-    // Perhaps a better solution is to track whether the user has interacted, and if not but they try enabling
-    // sound, show a tooltip that they should tap again to enable sound.
+
+    // Give browser time to register user interaction
     setTimeout(() => {
-      this.ctx.resume();
+      this.ctx.resume().then(() => {
+        console.log("AudioContext resumed");
+      }).catch(err => {
+        console.warn("Failed to resume AudioContext:", err);
+      });
     }, 250);
   },
 
-  // Private property used to throttle small burst sounds.
+  // Throttle small bursts
   _lastSmallBurstTime: 0,
 
   /**
-   * Play a sound of `type`. Will randomly pick a file associated with type, and play it at the specified volume
-   * and play speed, with a bit of random variance in play speed. This is all based on `sources` config.
-   *
-   * @param  {string} type - The type of sound to play.
-   * @param  {?number} scale=1 - Value between 0 and 1 (values outside range will be clamped). Scales less than one
-   *                             descrease volume and increase playback speed. This is because large explosions are
-   *                             louder, deeper, and reverberate longer than small explosions.
-   *                             Note that a scale of 0 will mute the sound.
+   * Play a sound of `type`. Picks random file, applies volume & playback rate variation.
    */
   playSound(type, scale = 1) {
-    // Ensure `scale` is within valid range.
     scale = MyMath.clamp(scale, 0, 1);
 
-    // Disallow starting new sounds if sound is disabled, app is running in slow motion, or paused.
-    // Slow motion check has some wiggle room in case user doesn't finish dragging the speed bar
-    // *all* the way back.
+    // Skip if sound disabled, slow motion, or paused
     if (!canPlaySoundSelector() || simSpeed < 0.95) {
       return;
     }
 
-    // Throttle small bursts, since floral/falling leaves shells have a lot of them.
+    // Throttle burstSmall (floral shells have many)
     if (type === "burstSmall") {
       const now = Date.now();
-      if (now - this._lastSmallBurstTime < 20) {
-        return;
-      }
+      if (now - this._lastSmallBurstTime < 20) return;
       this._lastSmallBurstTime = now;
     }
 
     const source = this.sources[type];
-
     if (!source) {
-      throw new Error(`Sound of type "${type}" doesn't exist.`);
+      console.error(`Sound type "${type}" not found`);
+      return;
+    }
+
+    if (!source.buffers || source.buffers.length === 0) {
+      console.warn(`No buffers available for ${type}`);
+      return;
     }
 
     const initialVolume = source.volume;
@@ -139,21 +150,20 @@ const soundManager = {
       source.playbackRateMax
     );
 
-    // Volume descreases with scale.
     const scaledVolume = initialVolume * scale;
-    // Playback rate increases with scale. For this, we map the scale of 0-1 to a scale of 2-1.
-    // So at a scale of 1, sound plays normally, but as scale approaches 0 speed approaches double.
     const scaledPlaybackRate = initialPlaybackRate * (2 - scale);
 
     const gainNode = this.ctx.createGain();
     gainNode.gain.value = scaledVolume;
 
     const buffer = MyMath.randomChoice(source.buffers);
+
     const bufferSource = this.ctx.createBufferSource();
     bufferSource.playbackRate.value = scaledPlaybackRate;
     bufferSource.buffer = buffer;
     bufferSource.connect(gainNode);
     gainNode.connect(this.ctx.destination);
+
     bufferSource.start(0);
   },
 };
