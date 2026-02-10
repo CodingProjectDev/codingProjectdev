@@ -8,7 +8,7 @@ const soundManager = {
       volume: 1,
       playbackRateMin: 0.85,
       playbackRateMax: 0.95,
-      fileNames: ["lift1.mov", "lift2.mp3", "lift3.mp3"],
+      fileNames: ["lift1.mov", "./assets/lift2.mp3", "lift3.mp3"],
     },
     burst: {
       volume: 1,
