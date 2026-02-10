@@ -1,5 +1,5 @@
 const soundManager = {
-  baseURL: "https://github.com/CodingProjectDev/codingProjectdev/tree/main/assets", 
+  baseURL: "https://codingprojectdev.github.io/codingProjectdev/assets", 
 
   ctx: new (window.AudioContext || window.webkitAudioContext)(),
 
