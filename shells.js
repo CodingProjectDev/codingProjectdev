@@ -413,7 +413,7 @@ const horsetailShell = (size = 1) => {
     strobe: color === COLOR.White,
   };
 };
-
+/*
 const heartShell = (size = 1) => ({
   shellSize: size,
   spreadSize: 260 + size * 90,
@@ -426,7 +426,7 @@ const heartShell = (size = 1) => ({
   shapeRotation: Math.random() * PI_2,
   shapePointCount: isLowQuality ? 260 : isHighQuality ? 520 : 400,
 });
-
+*/
 const starShell = (size = 1) => ({
   shellSize: size,
   spreadSize: 260 + size * 90,
@@ -439,7 +439,7 @@ const starShell = (size = 1) => ({
   shapeRotation: Math.random() * PI_2,
   shapePointCount: isLowQuality ? 260 : isHighQuality ? 520 : 420,
 });
-
+/*
 const smileyShell = (size = 1) => ({
   shellSize: size,
   spreadSize: 260 + size * 90,
@@ -468,7 +468,7 @@ const textShell = (size = 1) => {
     shapePointCount: isLowQuality ? 420 : isHighQuality ? 900 : 700,
   };
 };
-
+*/
 function randomShellName() {
   return Math.random() < 0.5
     ? "Crysanthemum"
